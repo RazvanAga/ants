@@ -73,7 +73,9 @@ export class World {
   constructor(config: WorldConfig, seed: number, params: SimParams = DEFAULT_PARAMS) {
     this.config = config;
     this.seed = seed;
-    this.params = params;
+    // Copy so this world's live params (mutated by the sliders, #10, and by
+    // setAntCount) are its own — never the shared DEFAULT_PARAMS singleton.
+    this.params = { ...params };
     this.prng = new Prng(seed);
     this.field = new PheromoneField(config.width, config.height, config.cellSize);
     this.nest = { x: config.width / 2, y: config.height / 2 };
@@ -88,6 +90,20 @@ export class World {
       this.nest.y - config.height * 0.18,
       200,
     );
+  }
+
+  /**
+   * Set the live colony size (the ant-count slider, #10). Raising it spawns
+   * fresh searching ants at the nest; lowering it drops the surplus from the
+   * end. Keeps `params.antCount` in sync so the panel reflects the true count.
+   */
+  setAntCount(count: number): void {
+    const target = Math.max(0, Math.floor(count));
+    while (this.ants.length < target) {
+      this.ants.push(spawnAnt(this.nest, this.prng));
+    }
+    if (this.ants.length > target) this.ants.length = target;
+    this.params.antCount = target;
   }
 
   /** Place a food source with the given crumb count (public op; see PRD-01). */

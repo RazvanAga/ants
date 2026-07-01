@@ -6,8 +6,8 @@ import { Loop } from "./loop.ts";
 const CONFIG: WorldConfig = { width: 640, height: 480, cellSize: 4 };
 const SEED = 1;
 const STEPS_PER_SECOND = 60;
-/** Crumb count the add-food tool places; becomes slider-driven in #10. */
-const NEXT_FOOD_SIZE = 300;
+/** Crumb count the next placed food source gets; driven by its slider (#10). */
+const placement = { foodSize: 300 };
 
 const canvas = document.querySelector<HTMLCanvasElement>("#field")!;
 const playPause = document.querySelector<HTMLButtonElement>("#play-pause")!;
@@ -58,8 +58,65 @@ canvas.addEventListener("click", (event) => {
   const x = ((event.clientX - rect.left) / rect.width) * canvas.width;
   const y = ((event.clientY - rect.top) / rect.height) * canvas.height;
   if (tool === "nest") world.moveNest(x, y);
-  else if (tool === "food") world.addFoodSource(x, y, NEXT_FOOD_SIZE);
+  else if (tool === "food") world.addFoodSource(x, y, placement.foodSize);
   else world.eraseAt(x, y);
 });
+
+// Parameter sliders (#10): behavioural params affect the running sim the instant
+// they change, because World reads world.params live every step and sliders write
+// straight into it. Ant count and next-food-size need dedicated setters instead.
+interface SliderSpec {
+  label: string;
+  min: number;
+  max: number;
+  step: number;
+  /** Current value at load. */
+  value: number;
+  /** Apply a new value to the sim; called on every input event. */
+  apply: (value: number) => void;
+}
+
+const sliders: SliderSpec[] = [
+  { label: "Ant count", min: 0, max: 1000, step: 10, value: world.params.antCount,
+    apply: (v) => world.setAntCount(v) },
+  { label: "Evaporation", min: 0, max: 0.1, step: 0.005, value: world.params.evaporation,
+    apply: (v) => { world.params.evaporation = v; } },
+  { label: "Diffusion", min: 0, max: 0.5, step: 0.01, value: world.params.diffusion,
+    apply: (v) => { world.params.diffusion = v; } },
+  { label: "Sensor distance", min: 2, max: 30, step: 1, value: world.params.sensorDistance,
+    apply: (v) => { world.params.sensorDistance = v; } },
+  { label: "Sensor angle", min: 0.1, max: 1.5, step: 0.05, value: world.params.sensorAngle,
+    apply: (v) => { world.params.sensorAngle = v; } },
+  { label: "Wander", min: 0, max: 1, step: 0.05, value: world.params.wander,
+    apply: (v) => { world.params.wander = v; } },
+  { label: "Deposit strength", min: 0, max: 1, step: 0.05, value: world.params.depositStrength,
+    apply: (v) => { world.params.depositStrength = v; } },
+  { label: "Trail reach", min: 20, max: 300, step: 10, value: world.params.trailReach,
+    apply: (v) => { world.params.trailReach = v; } },
+  { label: "Next food size", min: 50, max: 1000, step: 50, value: placement.foodSize,
+    apply: (v) => { placement.foodSize = v; } },
+];
+
+const sliderPanel = document.querySelector<HTMLDivElement>("#sliders")!;
+for (const spec of sliders) {
+  const label = document.createElement("label");
+  const name = document.createElement("span");
+  name.textContent = spec.label;
+  const value = document.createElement("output");
+  value.textContent = String(spec.value);
+  const input = document.createElement("input");
+  input.type = "range";
+  input.min = String(spec.min);
+  input.max = String(spec.max);
+  input.step = String(spec.step);
+  input.value = String(spec.value);
+  input.addEventListener("input", () => {
+    const v = Number(input.value);
+    value.textContent = input.value;
+    spec.apply(v);
+  });
+  label.append(name, value, input);
+  sliderPanel.append(label);
+}
 
 loop.start();
