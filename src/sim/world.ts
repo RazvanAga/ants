@@ -1,12 +1,16 @@
 import { Prng } from "./prng.ts";
 import { DEFAULT_PARAMS, type SimParams } from "./params.ts";
-import { spawnAnt, stepAnt, type Ant } from "./ant.ts";
+import { spawnAnt, stepAnt, reorientToward, type Ant } from "./ant.ts";
 import { PheromoneField } from "./field.ts";
+import { makeFoodSource, type FoodSource } from "./food.ts";
 
 export interface Vec2 {
   x: number;
   y: number;
 }
+
+/** How close a carrying ant must get to the nest to deliver its crumb, in pixels. */
+const DELIVERY_RADIUS = 8;
 
 /**
  * Structural parameters of the field. Hardcoded for v1 (see PRD-01 → UI);
@@ -30,6 +34,8 @@ export interface WorldSnapshot {
   tick: number;
   nest: Vec2;
   ants: Ant[];
+  foodSources: FoodSource[];
+  foodCollected: number;
   /** Home / food pheromone channels, copied so the snapshot is a frozen view. */
   home: Float32Array;
   food: Float32Array;
@@ -52,6 +58,10 @@ export class World {
   readonly ants: Ant[] = [];
   /** The two-channel pheromone field the colony coordinates through (ADR-0002). */
   readonly field: PheromoneField;
+  /** Placed, depletable food sources; removed when their last crumb is taken. */
+  readonly foodSources: FoodSource[] = [];
+  /** Running tally of crumbs delivered to the nest — the colony's yield. */
+  foodCollected = 0;
   tick = 0;
 
   /** All randomness flows from here; seeded so runs are reproducible. */
@@ -67,13 +77,29 @@ export class World {
     for (let i = 0; i < params.antCount; i++) {
       this.ants.push(spawnAnt(this.nest, this.prng));
     }
+    // A default food source, offset from the nest so the colony has something to
+    // discover the instant the app opens (PRD-01 → Further Notes). Position and
+    // crumb count are starting points, dialled in during #11.
+    this.addFoodSource(
+      this.nest.x + config.width * 0.22,
+      this.nest.y - config.height * 0.18,
+      200,
+    );
+  }
+
+  /** Place a food source with the given crumb count (public op; see PRD-01). */
+  addFoodSource(x: number, y: number, crumbs: number): FoodSource {
+    const source = makeFoodSource(x, y, crumbs);
+    this.foodSources.push(source);
+    return source;
   }
 
   /**
    * Advance the world by one fixed timestep. Deterministic in
-   * (state, params, seed). Currently: advance the clock, then move every ant.
-   * Later slices extend the per-tick order to: sense-snapshot → move → deposit →
-   * diffuse/evaporate, all drawing from `this.prng`.
+   * (state, params, seed). Per-tick order (PRD-01 → Pheromone field):
+   * (1) sense-snapshot + move, (2) resolve goal interactions, (3) deposit,
+   * (4) diffuse/evaporate. Depositing after moving means an ant never senses its
+   * own just-laid deposit in the same tick.
    */
   step(): void {
     this.tick++;
@@ -82,24 +108,82 @@ export class World {
       height: this.config.height,
       params: this.params,
       rng: this.prng,
+      nest: this.nest,
     };
 
-    // Per-tick order (PRD-01 → Pheromone field): (1) sense-snapshot + move,
-    // (2) deposit, (3) diffuse/evaporate. Depositing after moving means an ant
-    // never senses its own just-laid deposit in the same tick.
     for (const ant of this.ants) {
       stepAnt(ant, ctx);
     }
 
     for (const ant of this.ants) {
-      // Deposit the pheromone for where the ant came from: searching ants (from
-      // the nest) lay home pheromone. Carrying ants lay food pheromone (slice #5).
-      if (ant.state === "searching") {
-        this.field.deposit("home", ant.x, ant.y, this.params.depositStrength);
-      }
+      if (ant.state === "searching") this.tryPickUp(ant);
+      else this.tryDeliver(ant);
+    }
+
+    for (const ant of this.ants) {
+      // Deposit the pheromone for where the ant came *from*, scaled by the
+      // fading budget so trails form a gradient: searching ants (from the nest)
+      // lay home pheromone; carrying ants (from food) lay food pheromone.
+      const channel = ant.state === "searching" ? "home" : "food";
+      this.field.deposit(channel, ant.x, ant.y, this.params.depositStrength * ant.budget);
     }
 
     this.field.decayAndDiffuse(this.params.evaporation, this.params.diffusion);
+  }
+
+  /**
+   * A searching ant within the sniff radius of a food source takes one crumb,
+   * switches to carrying, refills its budget, and reorients toward home. The
+   * source is removed when its last crumb is taken.
+   */
+  private tryPickUp(ant: Ant): void {
+    const source = this.nearestFoodInSniff(ant);
+    if (!source) return;
+
+    source.crumbs--;
+    ant.state = "carrying";
+    ant.budget = 1;
+    reorientToward(
+      ant,
+      Math.atan2(this.nest.y - ant.y, this.nest.x - ant.x),
+      this.params.maxTurn,
+    );
+
+    if (source.crumbs <= 0) {
+      this.foodSources.splice(this.foodSources.indexOf(source), 1);
+    }
+  }
+
+  /**
+   * A carrying ant within the delivery radius of the nest delivers its crumb:
+   * food collected increments, it reverts to searching, refills its budget, and
+   * reorients outward to explore again — closing the forage loop.
+   */
+  private tryDeliver(ant: Ant): void {
+    if (distance(ant, this.nest) > DELIVERY_RADIUS) return;
+
+    this.foodCollected++;
+    ant.state = "searching";
+    ant.budget = 1;
+    reorientToward(
+      ant,
+      Math.atan2(ant.y - this.nest.y, ant.x - this.nest.x),
+      this.params.maxTurn,
+    );
+  }
+
+  private nearestFoodInSniff(ant: Ant): FoodSource | null {
+    let best: FoodSource | null = null;
+    let bestDist = this.params.sniffRadius;
+    for (const source of this.foodSources) {
+      if (source.crumbs <= 0) continue;
+      const d = distance(ant, source);
+      if (d <= bestDist) {
+        best = source;
+        bestDist = d;
+      }
+    }
+    return best;
   }
 
   snapshot(): WorldSnapshot {
@@ -107,9 +191,15 @@ export class World {
       tick: this.tick,
       nest: { ...this.nest },
       ants: this.ants.map((a) => ({ ...a })),
+      foodSources: this.foodSources.map((s) => ({ ...s })),
+      foodCollected: this.foodCollected,
       home: Float32Array.from(this.field.home),
       food: Float32Array.from(this.field.food),
       rngState: this.prng.state,
     };
   }
+}
+
+function distance(a: Vec2, b: Vec2): number {
+  return Math.hypot(a.x - b.x, a.y - b.y);
 }

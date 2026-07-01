@@ -11,6 +11,12 @@ export interface Ant {
   /** Facing direction in radians. */
   heading: number;
   state: AntState;
+  /**
+   * Deposit budget, 1→0. Full at a goal, decays linearly to zero over the
+   * "trail reach" distance travelled, so deposits are strongest near the goal —
+   * this is what turns a stream of deposits into a usable gradient (PRD-01).
+   */
+  budget: number;
 }
 
 /** Context a single ant needs to update itself for one tick. */
@@ -19,43 +25,63 @@ export interface AntStepContext {
   height: number;
   params: SimParams;
   rng: Prng;
+  nest: Vec2;
 }
 
-/** Spawn a searching ant at the nest with a randomised heading. */
+/** Spawn a searching ant at the nest with a randomised heading and full budget. */
 export function spawnAnt(nest: Vec2, rng: Prng): Ant {
   return {
     x: nest.x,
     y: nest.y,
     heading: rng.next() * Math.PI * 2,
     state: "searching",
+    budget: 1,
   };
 }
 
 /**
- * Advance one ant by a single tick: a bounded random wander, overridden by
- * wall-avoidance steering near the boundary, then forward motion. The ant is
- * clamped inside the field as a hard guarantee that the colony stays on screen.
+ * Advance one ant by a single tick. Searching ants wander; carrying ants steer
+ * toward the nest by the homing vector (pheromone-following arrives in slice #6).
+ * Either way, wall-avoidance steering overrides near the boundary, the turn is
+ * capped at the max turn rate, then the ant moves forward and its budget decays
+ * with the distance travelled. The ant is clamped inside the field.
  *
- * Exactly one PRNG draw happens per ant per tick regardless of branch, so the
- * draw order — and therefore determinism — is stable.
+ * Exactly one PRNG draw happens per ant per tick regardless of state, so the
+ * draw order — and therefore determinism — stays stable as ants change state.
  */
 export function stepAnt(ant: Ant, ctx: AntStepContext): void {
-  const { width, height, params, rng } = ctx;
+  const { width, height, params, rng, nest } = ctx;
 
   const wanderTurn = (rng.next() * 2 - 1) * params.wander;
-  const avoid = wallAvoidance(ant, width, height, params.wallMargin);
 
-  let turn: number;
-  if (avoid) {
-    // Near a wall, steering away takes precedence over the wander.
-    turn = clamp(wrapAngle(avoid - ant.heading), -params.maxTurn, params.maxTurn);
+  let desired: number;
+  if (ant.state === "carrying") {
+    const toNest = Math.atan2(nest.y - ant.y, nest.x - ant.x);
+    desired = wrapAngle(toNest - ant.heading);
   } else {
-    turn = clamp(wanderTurn, -params.maxTurn, params.maxTurn);
+    desired = wanderTurn;
   }
+
+  const avoid = wallAvoidance(ant, width, height, params.wallMargin);
+  const turn = clamp(
+    avoid !== null ? wrapAngle(avoid - ant.heading) : desired,
+    -params.maxTurn,
+    params.maxTurn,
+  );
 
   ant.heading = wrapAngle(ant.heading + turn);
   ant.x = clamp(ant.x + Math.cos(ant.heading) * params.speed, 0, width);
   ant.y = clamp(ant.y + Math.sin(ant.heading) * params.speed, 0, height);
+  ant.budget = Math.max(0, ant.budget - params.speed / params.trailReach);
+}
+
+/**
+ * Turn an ant toward a target heading by at most the max turn rate — used to
+ * reorient believably toward its return direction when it reaches a goal.
+ */
+export function reorientToward(ant: Ant, targetHeading: number, maxTurn: number): void {
+  const diff = wrapAngle(targetHeading - ant.heading);
+  ant.heading = wrapAngle(ant.heading + clamp(diff, -maxTurn, maxTurn));
 }
 
 /**

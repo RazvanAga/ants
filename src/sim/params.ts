@@ -18,8 +18,12 @@ export interface SimParams {
   evaporation: number;
   /** How strongly each cell blends toward its neighbours' average per tick, 0–1. */
   diffusion: number;
-  /** Pheromone added to the current cell per depositing ant per tick. */
+  /** Pheromone added to the current cell per depositing ant per tick, at full budget. */
   depositStrength: number;
+  /** Distance at which a searching ant directly detects a food source, in pixels. */
+  sniffRadius: number;
+  /** Distance over which an ant's deposit budget fades from full to zero, in pixels. */
+  trailReach: number;
 }
 
 export const DEFAULT_PARAMS: SimParams = {
@@ -31,4 +35,6 @@ export const DEFAULT_PARAMS: SimParams = {
   evaporation: 0.02,
   diffusion: 0.12,
   depositStrength: 0.2,
+  sniffRadius: 15,
+  trailReach: 120,
 };
