@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Ant Colony Simulation</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --field: #7f7f7f;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 1rem;
+        padding: 1.5rem;
+        background: #1c1c1c;
+        color: #e8e8e8;
+        font: 14px/1.4 system-ui, sans-serif;
+      }
+      #controls {
+        display: flex;
+        gap: 0.75rem;
+        align-items: center;
+      }
+      button {
+        font: inherit;
+        padding: 0.4rem 0.9rem;
+        border: 1px solid #555;
+        border-radius: 6px;
+        background: #2c2c2c;
+        color: inherit;
+        cursor: pointer;
+      }
+      button:hover {
+        background: #383838;
+      }
+      canvas {
+        border: 1px solid #444;
+        display: block;
+        image-rendering: pixelated;
+      }
+      #status {
+        opacity: 0.7;
+        font-variant-numeric: tabular-nums;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="controls">
+      <button id="play-pause" type="button">Pause</button>
+      <span id="status"></span>
+    </div>
+    <canvas id="field"></canvas>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

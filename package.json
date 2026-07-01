@@ -1,0 +1,19 @@
+{
+  "name": "ants",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "Top-down ant colony simulation with emergent, stigmergic foraging behaviour.",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3",
+    "vite": "^5.4.10",
+    "vitest": "^2.1.5"
+  }
+}
