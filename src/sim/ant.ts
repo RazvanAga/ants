@@ -18,6 +18,13 @@ export interface Ant {
    * this is what turns a stream of deposits into a usable gradient (PRD-01).
    */
   budget: number;
+  /**
+   * Ticks since this ant last reached a goal (pickup or delivery). Drives the
+   * give-up timer: once it exceeds `giveUpTicks` the ant enters an escape-wander.
+   */
+  ticksSinceGoal: number;
+  /** Remaining ticks of the current escape-wander window; 0 when not escaping. */
+  escapeTicks: number;
 }
 
 /** Context a single ant needs to update itself for one tick. */
@@ -39,6 +46,8 @@ export function spawnAnt(nest: Vec2, rng: Prng): Ant {
     heading: rng.next() * Math.PI * 2,
     state: "searching",
     budget: 1,
+    ticksSinceGoal: 0,
+    escapeTicks: 0,
   };
 }
 
@@ -47,6 +56,10 @@ export function spawnAnt(nest: Vec2, rng: Prng): Ant {
  * (slice #6): a searching ant follows food pheromone toward food; a carrying ant
  * follows home pheromone toward the nest, with the homing vector demoted to a
  * weak fallback so it can't get lost when the trail has evaporated (ADR-0003).
+ * An ant that has gone too long without reaching a goal gives up and enters a
+ * bounded escape-wander (#7): it ignores pheromone and turns hard and randomly to
+ * shake loose of whatever loop it was in, then resumes — this is also what keeps
+ * a colony with no food searching forever instead of settling into fixed orbits.
  * Wall-avoidance overrides near the boundary, the turn is capped at the max turn
  * rate, then the ant moves forward and its budget decays with distance travelled.
  * The ant is clamped inside the field.
@@ -57,10 +70,22 @@ export function spawnAnt(nest: Vec2, rng: Prng): Ant {
 export function stepAnt(ant: Ant, ctx: AntStepContext): void {
   const { width, height, params, rng, nest, field } = ctx;
 
-  const wanderTurn = (rng.next() * 2 - 1) * params.wander;
+  ant.ticksSinceGoal++;
+  const raw = rng.next() * 2 - 1; // the single per-tick draw, used by every branch
+
+  // Give up if it's been too long since a goal: open an escape-wander window and
+  // reset the clock so windows can't chain back-to-back.
+  if (ant.escapeTicks === 0 && ant.ticksSinceGoal >= params.giveUpTicks) {
+    ant.escapeTicks = params.escapeDuration;
+    ant.ticksSinceGoal = 0;
+  }
 
   let desired: number;
-  if (ant.state === "carrying") {
+  if (ant.escapeTicks > 0) {
+    // Escape-wander: ignore pheromone entirely, turn hard and randomly.
+    ant.escapeTicks--;
+    desired = raw * params.escapeTurn;
+  } else if (ant.state === "carrying") {
     const { turn, strength } = senseSteer(field, ant, "home", params);
     const homingTurn = wrapAngle(
       Math.atan2(nest.y - ant.y, nest.x - ant.x) - ant.heading,
@@ -70,12 +95,12 @@ export function stepAnt(ant: Ant, ctx: AntStepContext): void {
     desired =
       strength < params.senseThreshold
         ? homingTurn
-        : turn + params.homingBias * homingTurn + wanderTurn;
+        : turn + params.homingBias * homingTurn + raw * params.wander;
   } else {
     // Follow food pheromone toward food; wander keeps exploration alive and, on
     // a blank field, is the entire steer — the pre-trail wandering of slice #3.
     const { turn } = senseSteer(field, ant, "food", params);
-    desired = turn + wanderTurn;
+    desired = turn + raw * params.wander;
   }
 
   const avoid = wallAvoidance(ant, width, height, params.wallMargin);

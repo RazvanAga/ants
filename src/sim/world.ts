@@ -144,6 +144,8 @@ export class World {
     source.crumbs--;
     ant.state = "carrying";
     ant.budget = 1;
+    ant.ticksSinceGoal = 0; // reached a goal — reset the give-up clock (#7)
+    ant.escapeTicks = 0;
     reorientToward(
       ant,
       Math.atan2(this.nest.y - ant.y, this.nest.x - ant.x),
@@ -166,6 +168,8 @@ export class World {
     this.foodCollected++;
     ant.state = "searching";
     ant.budget = 1;
+    ant.ticksSinceGoal = 0; // reached a goal — reset the give-up clock (#7)
+    ant.escapeTicks = 0;
     reorientToward(
       ant,
       Math.atan2(ant.y - this.nest.y, ant.x - this.nest.x),

@@ -5,7 +5,15 @@ import { DEFAULT_PARAMS } from "./params.ts";
 
 /** An ant sitting mid-field, facing +x, so "front" is +x and "left" is −angle. */
 function antFacingRight(): Ant {
-  return { x: 60, y: 60, heading: 0, state: "searching", budget: 1 };
+  return {
+    x: 60,
+    y: 60,
+    heading: 0,
+    state: "searching",
+    budget: 1,
+    ticksSinceGoal: 0,
+    escapeTicks: 0,
+  };
 }
 
 /** World-space point of a sensor at `offset` radians from the ant's heading. */

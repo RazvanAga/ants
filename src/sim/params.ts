@@ -40,6 +40,18 @@ export interface SimParams {
    * trail it's on.
    */
   homingBias: number;
+  /**
+   * Ticks an ant may go without reaching a goal before it gives up and enters an
+   * escape-wander. Also what keeps a colony with no food searching forever (#7).
+   */
+  giveUpTicks: number;
+  /** Length of an escape-wander window once triggered, in ticks. */
+  escapeDuration: number;
+  /**
+   * Random turn magnitude during escape-wander — larger than `wander` so the ant
+   * turns hard and breaks out of the loop it was stuck in.
+   */
+  escapeTurn: number;
 }
 
 export const DEFAULT_PARAMS: SimParams = {
@@ -57,4 +69,7 @@ export const DEFAULT_PARAMS: SimParams = {
   sensorAngle: 0.6,
   senseThreshold: 0.02,
   homingBias: 0.3,
+  giveUpTicks: 800,
+  escapeDuration: 60,
+  escapeTurn: 1.0,
 };
