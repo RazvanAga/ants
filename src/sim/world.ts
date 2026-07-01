@@ -109,6 +109,7 @@ export class World {
       params: this.params,
       rng: this.prng,
       nest: this.nest,
+      field: this.field,
     };
 
     for (const ant of this.ants) {

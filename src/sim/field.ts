@@ -72,6 +72,27 @@ export class PheromoneField {
   }
 
   /**
+   * Mean of the 3×3 block of cells centred on a world-space point, edge-replicated
+   * at the borders. This is what a steering sensor reads — averaging over a patch
+   * smooths the grid's discreteness so ants follow a gradient rather than chasing
+   * single noisy cells (PRD-01 → Ant behaviour).
+   */
+  samplePatch(ch: Channel, x: number, y: number): number {
+    const g = this.channel(ch);
+    const col0 = this.colOf(x);
+    const row0 = this.rowOf(y);
+    let sum = 0;
+    for (let dr = -1; dr <= 1; dr++) {
+      const row = clampInt(row0 + dr, this.rows);
+      for (let dc = -1; dc <= 1; dc++) {
+        const col = clampInt(col0 + dc, this.cols);
+        sum += g[row * this.cols + col];
+      }
+    }
+    return sum / 9;
+  }
+
+  /**
    * One combined evaporate + diffuse pass over both channels. Diffusion is a
    * double-buffered 4-neighbour blur with edge replication (no diffusion off the
    * field, so mass clamps at the walls) — symmetric, no directional smear.

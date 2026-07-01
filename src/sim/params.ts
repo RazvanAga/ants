@@ -24,6 +24,22 @@ export interface SimParams {
   sniffRadius: number;
   /** Distance over which an ant's deposit budget fades from full to zero, in pixels. */
   trailReach: number;
+  /** How far ahead the three steering sensors sample the field, in pixels. */
+  sensorDistance: number;
+  /** Angular offset of the left/right sensors from the ant's heading, in radians. */
+  sensorAngle: number;
+  /**
+   * Minimum strongest-sensor reading for a carrying ant to trust the home trail.
+   * Below it, the ant falls back to the homing vector so it can't get lost when
+   * the trail has evaporated (ADR-0003).
+   */
+  senseThreshold: number;
+  /**
+   * Weight of the weak homing-vector bias blended in while a carrying ant is
+   * following a home trail — keeps it drifting nestward without overriding the
+   * trail it's on.
+   */
+  homingBias: number;
 }
 
 export const DEFAULT_PARAMS: SimParams = {
@@ -37,4 +53,8 @@ export const DEFAULT_PARAMS: SimParams = {
   depositStrength: 0.2,
   sniffRadius: 15,
   trailReach: 120,
+  sensorDistance: 12,
+  sensorAngle: 0.6,
+  senseThreshold: 0.02,
+  homingBias: 0.3,
 };

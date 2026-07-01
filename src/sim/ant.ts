@@ -1,6 +1,7 @@
 import type { Prng } from "./prng.ts";
 import type { SimParams } from "./params.ts";
 import type { Vec2 } from "./world.ts";
+import type { PheromoneField, Channel } from "./field.ts";
 
 /** An ant is always in exactly one of two states (see docs/CONTEXT.md). */
 export type AntState = "searching" | "carrying";
@@ -26,6 +27,8 @@ export interface AntStepContext {
   params: SimParams;
   rng: Prng;
   nest: Vec2;
+  /** The shared pheromone field the ant senses to steer (read-only this phase). */
+  field: PheromoneField;
 }
 
 /** Spawn a searching ant at the nest with a randomised heading and full budget. */
@@ -40,26 +43,39 @@ export function spawnAnt(nest: Vec2, rng: Prng): Ant {
 }
 
 /**
- * Advance one ant by a single tick. Searching ants wander; carrying ants steer
- * toward the nest by the homing vector (pheromone-following arrives in slice #6).
- * Either way, wall-avoidance steering overrides near the boundary, the turn is
- * capped at the max turn rate, then the ant moves forward and its budget decays
- * with the distance travelled. The ant is clamped inside the field.
+ * Advance one ant by a single tick. Both states steer by three forward sensors
+ * (slice #6): a searching ant follows food pheromone toward food; a carrying ant
+ * follows home pheromone toward the nest, with the homing vector demoted to a
+ * weak fallback so it can't get lost when the trail has evaporated (ADR-0003).
+ * Wall-avoidance overrides near the boundary, the turn is capped at the max turn
+ * rate, then the ant moves forward and its budget decays with distance travelled.
+ * The ant is clamped inside the field.
  *
  * Exactly one PRNG draw happens per ant per tick regardless of state, so the
  * draw order — and therefore determinism — stays stable as ants change state.
  */
 export function stepAnt(ant: Ant, ctx: AntStepContext): void {
-  const { width, height, params, rng, nest } = ctx;
+  const { width, height, params, rng, nest, field } = ctx;
 
   const wanderTurn = (rng.next() * 2 - 1) * params.wander;
 
   let desired: number;
   if (ant.state === "carrying") {
-    const toNest = Math.atan2(nest.y - ant.y, nest.x - ant.x);
-    desired = wrapAngle(toNest - ant.heading);
+    const { turn, strength } = senseSteer(field, ant, "home", params);
+    const homingTurn = wrapAngle(
+      Math.atan2(nest.y - ant.y, nest.x - ant.x) - ant.heading,
+    );
+    // On a home trail: follow the sensors, nudged weakly nestward. Off it: the
+    // homing vector is the whole steer, so a trail-less ant still gets home.
+    desired =
+      strength < params.senseThreshold
+        ? homingTurn
+        : turn + params.homingBias * homingTurn + wanderTurn;
   } else {
-    desired = wanderTurn;
+    // Follow food pheromone toward food; wander keeps exploration alive and, on
+    // a blank field, is the entire steer — the pre-trail wandering of slice #3.
+    const { turn } = senseSteer(field, ant, "food", params);
+    desired = turn + wanderTurn;
   }
 
   const avoid = wallAvoidance(ant, width, height, params.wallMargin);
@@ -73,6 +89,40 @@ export function stepAnt(ant: Ant, ctx: AntStepContext): void {
   ant.x = clamp(ant.x + Math.cos(ant.heading) * params.speed, 0, width);
   ant.y = clamp(ant.y + Math.sin(ant.heading) * params.speed, 0, height);
   ant.budget = Math.max(0, ant.budget - params.speed / params.trailReach);
+}
+
+/**
+ * The three-sensor steering rule. Three forward sensors — front-left, centre,
+ * front-right at ±`sensorAngle` — each read a 3×3 averaged patch of `channel` a
+ * fixed distance ahead. Returns the relative turn voting toward the strongest
+ * sensor (`0` when the centre wins or all tie), and that strongest reading so a
+ * caller can tell "on a trail" from "nothing sensed". Pure: no PRNG, no mutation.
+ */
+export function senseSteer(
+  field: PheromoneField,
+  ant: Ant,
+  channel: Channel,
+  params: SimParams,
+): { turn: number; strength: number } {
+  const { sensorDistance, sensorAngle } = params;
+  const sample = (offset: number): number =>
+    field.samplePatch(
+      channel,
+      ant.x + Math.cos(ant.heading + offset) * sensorDistance,
+      ant.y + Math.sin(ant.heading + offset) * sensorDistance,
+    );
+
+  const left = sample(-sensorAngle);
+  const centre = sample(0);
+  const right = sample(sensorAngle);
+  const strength = Math.max(left, centre, right);
+
+  let turn = 0;
+  if (centre >= left && centre >= right) turn = 0;
+  else if (left >= right) turn = -sensorAngle;
+  else turn = sensorAngle;
+
+  return { turn, strength };
 }
 
 /**
