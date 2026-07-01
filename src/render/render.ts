@@ -10,6 +10,8 @@ const FIELD_GREY = "#7f7f7f";
 const NEST_INK = "#141414";
 const NEST_RADIUS = 9;
 const NEST_RING_WIDTH = 3;
+const SEARCHER_INK = "#111111";
+const ANT_SIZE = 3;
 
 export class Renderer {
   private readonly ctx: CanvasRenderingContext2D;
@@ -32,7 +34,17 @@ export class Renderer {
     ctx.fillStyle = FIELD_GREY;
     ctx.fillRect(0, 0, world.config.width, world.config.height);
 
-    // Nest — a black ring.
+    // Ants — 3px dots, batched by state. Searchers are black.
+    // (Carriers get their own colour once the forage loop lands.)
+    const off = ANT_SIZE / 2;
+    ctx.fillStyle = SEARCHER_INK;
+    for (const ant of world.ants) {
+      if (ant.state === "searching") {
+        ctx.fillRect(ant.x - off, ant.y - off, ANT_SIZE, ANT_SIZE);
+      }
+    }
+
+    // Nest — a black ring, drawn on top so the home is always visible.
     ctx.strokeStyle = NEST_INK;
     ctx.lineWidth = NEST_RING_WIDTH;
     ctx.beginPath();
