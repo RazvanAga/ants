@@ -41,6 +41,16 @@
       button:hover {
         background: #383838;
       }
+      button.active {
+        background: #4a4a4a;
+        border-color: #8a8a8a;
+      }
+      #tools {
+        display: flex;
+        gap: 0.4rem;
+        border-left: 1px solid #444;
+        padding-left: 0.75rem;
+      }
       canvas {
         border: 1px solid #444;
         display: block;
@@ -55,6 +65,11 @@
   <body>
     <div id="controls">
       <button id="play-pause" type="button">Pause</button>
+      <div id="tools">
+        <button id="tool-nest" type="button">Nest</button>
+        <button id="tool-food" type="button">Food</button>
+        <button id="tool-erase" type="button">Erase</button>
+      </div>
       <span id="status"></span>
     </div>
     <canvas id="field"></canvas>

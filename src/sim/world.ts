@@ -12,6 +12,9 @@ export interface Vec2 {
 /** How close a carrying ant must get to the nest to deliver its crumb, in pixels. */
 const DELIVERY_RADIUS = 8;
 
+/** Radius the erase tool reaches to remove food sources and wipe pheromone, in pixels. */
+const ERASE_RADIUS = 16;
+
 /**
  * Structural parameters of the field. Hardcoded for v1 (see PRD-01 → UI);
  * changing them requires a fresh World.
@@ -92,6 +95,29 @@ export class World {
     const source = makeFoodSource(x, y, crumbs);
     this.foodSources.push(source);
     return source;
+  }
+
+  /**
+   * Move the colony's single nest to a point, clamped inside the field (the
+   * place-nest tool, #8). Mutates the nest in place so existing references and
+   * the snapshot stay valid.
+   */
+  moveNest(x: number, y: number): void {
+    this.nest.x = clamp(x, 0, this.config.width);
+    this.nest.y = clamp(y, 0, this.config.height);
+  }
+
+  /**
+   * The erase tool (#8): remove any food source within the erase radius of a
+   * point and wipe both pheromone channels there.
+   */
+  eraseAt(x: number, y: number): void {
+    for (let i = this.foodSources.length - 1; i >= 0; i--) {
+      if (distance(this.foodSources[i], { x, y }) <= ERASE_RADIUS) {
+        this.foodSources.splice(i, 1);
+      }
+    }
+    this.field.clearAround(x, y, ERASE_RADIUS);
   }
 
   /**
@@ -207,4 +233,8 @@ export class World {
 
 function distance(a: Vec2, b: Vec2): number {
   return Math.hypot(a.x - b.x, a.y - b.y);
+}
+
+function clamp(v: number, lo: number, hi: number): number {
+  return v < lo ? lo : v > hi ? hi : v;
 }

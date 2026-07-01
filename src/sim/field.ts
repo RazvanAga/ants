@@ -93,6 +93,25 @@ export class PheromoneField {
   }
 
   /**
+   * Zero both channels in the square block of cells within `radius` of a
+   * world-space point — the erase tool wiping pheromone under the cursor (#8).
+   */
+  clearAround(x: number, y: number, radius: number): void {
+    const col0 = this.colOf(x);
+    const row0 = this.rowOf(y);
+    const reach = Math.ceil(radius / this.cellSize);
+    for (let dr = -reach; dr <= reach; dr++) {
+      const row = clampInt(row0 + dr, this.rows);
+      for (let dc = -reach; dc <= reach; dc++) {
+        const col = clampInt(col0 + dc, this.cols);
+        const i = row * this.cols + col;
+        this.home[i] = 0;
+        this.food[i] = 0;
+      }
+    }
+  }
+
+  /**
    * One combined evaporate + diffuse pass over both channels. Diffusion is a
    * double-buffered 4-neighbour blur with edge replication (no diffusion off the
    * field, so mass clamps at the walls) — symmetric, no directional smear.
