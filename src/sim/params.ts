@@ -1,9 +1,11 @@
 /**
  * Live-tunable colony parameters (PRD-01 → UI). The DEFAULT_PARAMS values below
- * were dialled in during the tuning slice (#11): verified to give reliable
- * discovery, bold trail formation, sharpening and fade across seeds, and a
- * palette that reads clearly on the grey field. Still fully live-tunable via the
- * sliders — these are just the out-of-the-box starting point.
+ * were dialled in during the tuning slice (#11), then re-tuned via headless
+ * benchmark sweeps: verified across seeds to give reliable discovery, bold trail
+ * formation, sharpening and fade, connected trails to food placed anywhere on
+ * the field (trailReach must span nest↔food, not just the opening source), and
+ * post-depletion dispersal. Still fully live-tunable via the sliders — these are
+ * just the out-of-the-box starting point.
  * Structural params (grid resolution, world size) live on WorldConfig instead.
  */
 export interface SimParams {
@@ -66,20 +68,20 @@ export interface SimParams {
   escapeTurn: number;
 }
 
-/** The tuned, verified defaults (#11). Live-editable through the sliders. */
+/** The tuned, verified defaults (#11, benchmark re-tune). Live-editable through the sliders. */
 export const DEFAULT_PARAMS: SimParams = {
   antCount: 200,
   speed: 1,
   maxTurn: 0.35,
-  wander: 0.3,
+  wander: 0.2,
   wallMargin: 32,
   evaporation: 0.02,
   diffusion: 0.12,
-  depositStrength: 0.2,
+  depositStrength: 0.3,
   sniffRadius: 15,
-  trailReach: 120,
-  sensorDistance: 12,
-  sensorAngle: 0.6,
+  trailReach: 240,
+  sensorDistance: 16,
+  sensorAngle: 0.45,
   senseThreshold: 0.02,
   foodSenseFloor: 0.00001,
   homingBias: 0.3,

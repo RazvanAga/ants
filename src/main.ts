@@ -11,10 +11,13 @@ const placement = { foodSize: 300 };
 
 const canvas = document.querySelector<HTMLCanvasElement>("#field")!;
 const playPause = document.querySelector<HTMLButtonElement>("#play-pause")!;
+const reset = document.querySelector<HTMLButtonElement>("#reset")!;
 const status = document.querySelector<HTMLSpanElement>("#status")!;
 
-const world = new World(CONFIG, SEED);
-const renderer = new Renderer(canvas, world);
+// `let`, not `const`: reset swaps in a fresh World/Renderer pair, and every
+// closure below (loop callbacks, tools, sliders) reads these bindings live.
+let world = new World(CONFIG, SEED);
+let renderer = new Renderer(canvas, world);
 
 const loop = new Loop(STEPS_PER_SECOND, {
   step: () => world.step(),
@@ -29,6 +32,17 @@ const loop = new Loop(STEPS_PER_SECOND, {
 playPause.addEventListener("click", () => {
   loop.paused = !loop.paused;
   playPause.textContent = loop.paused ? "Play" : "Pause";
+});
+
+// Reset: rebuild the world with a fresh random seed — all ants back at the
+// nest, the pheromone field cleared, tick 0, and the default food source
+// respawned in a new random direction (its bearing is drawn from the seed).
+// The run is still reproducible: the status bar shows the new seed. The current
+// slider params carry over (World copies them), so a tuned colony restarts
+// with its tuning intact. Renders next frame even while paused.
+reset.addEventListener("click", () => {
+  world = new World(CONFIG, (Math.random() * 0x100000000) >>> 0, world.params);
+  renderer = new Renderer(canvas, world);
 });
 
 // Placement tools (#8): pick a mode, then click the field. The World public ops

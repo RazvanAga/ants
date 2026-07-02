@@ -82,13 +82,20 @@ export class World {
     for (let i = 0; i < params.antCount; i++) {
       this.ants.push(spawnAnt(this.nest, this.prng));
     }
-    // A default food source, offset from the nest so the colony has something to
-    // discover the instant the app opens (PRD-01 → Further Notes). Tuned in #11:
-    // close enough for first contact in ~5s, and 300 crumbs (matching the default
-    // drop size) so the trail forms boldly and lingers long enough to admire.
+    // A default food source so the colony has something to discover the instant
+    // the app opens (PRD-01 → Further Notes). Its *direction* from the nest is
+    // drawn from the seeded PRNG — each seed explores a different bearing, and
+    // on an empty symmetric field the bearing doesn't matter. Its *distance* is
+    // the one the defaults were calibrated against (#11): first contact in a few
+    // seconds, a trail well within reach, and clear of every wall at any angle.
+    // 300 crumbs matches the default drop size so the trail forms boldly and
+    // lingers long enough to admire. Drawn after the ant spawns so it appends to
+    // the seed's draw stream rather than shifting every ant's initial heading.
+    const foodAngle = this.prng.next() * Math.PI * 2;
+    const foodDistance = Math.hypot(config.width * 0.2, config.height * 0.16);
     this.addFoodSource(
-      this.nest.x + config.width * 0.2,
-      this.nest.y - config.height * 0.16,
+      this.nest.x + Math.cos(foodAngle) * foodDistance,
+      this.nest.y + Math.sin(foodAngle) * foodDistance,
       300,
     );
   }
