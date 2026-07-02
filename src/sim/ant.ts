@@ -58,8 +58,7 @@ export function spawnAnt(nest: Vec2, rng: Prng): Ant {
  * weak fallback so it can't get lost when the trail has evaporated (ADR-0003).
  * An ant that has gone too long without reaching a goal gives up and enters a
  * bounded escape-wander (#7): it ignores pheromone and turns hard and randomly to
- * shake loose of whatever loop it was in, then resumes — this is also what keeps
- * a colony with no food searching forever instead of settling into fixed orbits.
+ * shake loose of whatever loop it was in, then resumes.
  * Wall-avoidance overrides near the boundary, the turn is capped at the max turn
  * rate, then the ant moves forward and its budget decays with distance travelled.
  * The ant is clamped inside the field.
@@ -97,10 +96,16 @@ export function stepAnt(ant: Ant, ctx: AntStepContext): void {
         ? homingTurn
         : turn + params.homingBias * homingTurn + raw * params.wander;
   } else {
-    // Follow food pheromone toward food; wander keeps exploration alive and, on
-    // a blank field, is the entire steer — the pre-trail wandering of slice #3.
-    const { turn } = senseSteer(field, ant, "food", params);
-    desired = turn + raw * params.wander;
+    // Follow food pheromone toward food, but only a trail worth trusting: below
+    // the food sense floor the reading is ignored and wander is the entire steer.
+    // That covers both the pre-trail blank field (slice #3) and — crucially — the
+    // *ghost* of an exhausted trail, which decays toward zero but never reaches it,
+    // and whose infinitesimal gradient would otherwise still command a full sensor
+    // vote and pin the whole colony orbiting a dead food site. Ignoring it lets a
+    // drained colony disperse and rediscover food dropped elsewhere (ADR-0003, the
+    // same trust threshold the carrying branch already applies to the home trail).
+    const { turn, strength } = senseSteer(field, ant, "food", params);
+    desired = (strength < params.foodSenseFloor ? 0 : turn) + raw * params.wander;
   }
 
   const avoid = wallAvoidance(ant, width, height, params.wallMargin);

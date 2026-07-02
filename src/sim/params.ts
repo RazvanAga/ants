@@ -38,6 +38,15 @@ export interface SimParams {
    */
   senseThreshold: number;
   /**
+   * Minimum strongest-sensor reading for a *searching* ant to trust the food
+   * trail. Below it the ant ignores the gradient and wanders, so it can't be
+   * steered by the near-zero *ghost* of an exhausted trail (which decays toward
+   * zero but never reaches it) and pinned orbiting a dead food site. Much lower
+   * than `senseThreshold`: a real recruitment trail's faint tail must still pull
+   * ants in, so this only rejects the diffusion floor left after depletion.
+   */
+  foodSenseFloor: number;
+  /**
    * Weight of the weak homing-vector bias blended in while a carrying ant is
    * following a home trail — keeps it drifting nestward without overriding the
    * trail it's on.
@@ -72,6 +81,7 @@ export const DEFAULT_PARAMS: SimParams = {
   sensorDistance: 12,
   sensorAngle: 0.6,
   senseThreshold: 0.02,
+  foodSenseFloor: 0.00001,
   homingBias: 0.3,
   giveUpTicks: 800,
   escapeDuration: 60,
