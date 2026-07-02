@@ -83,12 +83,13 @@ export class World {
       this.ants.push(spawnAnt(this.nest, this.prng));
     }
     // A default food source, offset from the nest so the colony has something to
-    // discover the instant the app opens (PRD-01 → Further Notes). Position and
-    // crumb count are starting points, dialled in during #11.
+    // discover the instant the app opens (PRD-01 → Further Notes). Tuned in #11:
+    // close enough for first contact in ~5s, and 300 crumbs (matching the default
+    // drop size) so the trail forms boldly and lingers long enough to admire.
     this.addFoodSource(
-      this.nest.x + config.width * 0.22,
-      this.nest.y - config.height * 0.18,
-      200,
+      this.nest.x + config.width * 0.2,
+      this.nest.y - config.height * 0.16,
+      300,
     );
   }
 

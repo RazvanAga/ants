@@ -1,6 +1,9 @@
 /**
- * Live-tunable colony parameters (PRD-01 → UI). Every value here is a starting
- * point, not a requirement — they get dialled in during the tuning slice (#11).
+ * Live-tunable colony parameters (PRD-01 → UI). The DEFAULT_PARAMS values below
+ * were dialled in during the tuning slice (#11): verified to give reliable
+ * discovery, bold trail formation, sharpening and fade across seeds, and a
+ * palette that reads clearly on the grey field. Still fully live-tunable via the
+ * sliders — these are just the out-of-the-box starting point.
  * Structural params (grid resolution, world size) live on WorldConfig instead.
  */
 export interface SimParams {
@@ -54,6 +57,7 @@ export interface SimParams {
   escapeTurn: number;
 }
 
+/** The tuned, verified defaults (#11). Live-editable through the sliders. */
 export const DEFAULT_PARAMS: SimParams = {
   antCount: 200,
   speed: 1,
