@@ -43,6 +43,24 @@ playPause.addEventListener("click", () => {
   playPause.textContent = loop.paused ? "Play" : "Pause";
 });
 
+// Speed control (#13): fast-forward the sim without touching the step size, so
+// higher speeds pass through identical states — just more of them per second.
+// The loop outlives resets, so the chosen speed carries over. Pause still halts
+// stepping and the loop's max-steps-per-frame guard still bounds an 8x frame.
+const speedButtons = [
+  ...document.querySelectorAll<HTMLButtonElement>("#speeds button"),
+];
+function selectSpeed(speed: number): void {
+  loop.speed = speed;
+  for (const button of speedButtons) {
+    button.classList.toggle("active", Number(button.dataset.speed) === speed);
+  }
+}
+for (const button of speedButtons) {
+  button.addEventListener("click", () => selectSpeed(Number(button.dataset.speed)));
+}
+selectSpeed(loop.speed);
+
 // Reset: rebuild the world with a fresh random seed — all ants back at the
 // nest, the pheromone field cleared, tick 0, and the default food source
 // respawned in a new random direction (its bearing is drawn from the seed).

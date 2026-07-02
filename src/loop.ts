@@ -20,6 +20,14 @@ export class Loop {
   private running = false;
   paused = false;
 
+  /**
+   * Wall-clock time multiplier for fast-forward. Scales elapsed time fed into
+   * the accumulator, so at Nx the sim takes N fixed steps where it took one —
+   * the step size never changes, so a run passes through identical states at
+   * any speed, just faster. The maxStepsPerFrame guard still bounds each frame.
+   */
+  speed = 1;
+
   /** Guard against spiral-of-death after a long stall (e.g. background tab). */
   private readonly maxStepsPerFrame = 240;
 
@@ -48,7 +56,7 @@ export class Loop {
     this.lastTime = now;
 
     if (!this.paused) {
-      this.accumulator += elapsed;
+      this.accumulator += elapsed * this.speed;
       let steps = 0;
       while (this.accumulator >= this.stepMs && steps < this.maxStepsPerFrame) {
         this.callbacks.step();
