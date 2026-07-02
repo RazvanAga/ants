@@ -19,13 +19,22 @@ const status = document.querySelector<HTMLSpanElement>("#status")!;
 let world = new World(CONFIG, SEED);
 let renderer = new Renderer(canvas, world);
 
+// Sim time is derived from ticks, not the wall clock, so it pauses when the sim
+// pauses and stays reproducible per seed. Format as m:ss.
+function formatClock(tick: number): string {
+  const totalSeconds = Math.floor(tick / STEPS_PER_SECOND);
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes}:${String(seconds).padStart(2, "0")}`;
+}
+
 const loop = new Loop(STEPS_PER_SECOND, {
   step: () => world.step(),
   render: () => {
     renderer.render();
-    status.textContent = `seed ${world.seed} · tick ${world.tick}${
-      loop.paused ? " · paused" : ""
-    }`;
+    status.textContent = `seed ${world.seed} · food ${world.foodCollected} · ${formatClock(
+      world.tick,
+    )}${loop.paused ? " · paused" : ""}`;
   },
 });
 
