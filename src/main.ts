@@ -178,13 +178,20 @@ canvas.addEventListener("pointerdown", (event) => {
   paintAt(x, y);
 });
 
-// Paint along the drag. No pointer capture, so leaving the canvas simply stops
-// the events (pausing the stroke); dragging back in with the button still held
-// resumes it. `buttons & 1` guards against a stroke that began off-canvas.
+// Show the ghost preview under the cursor (#16), and paint along the drag. No
+// pointer capture, so leaving the canvas simply stops the events (pausing the
+// stroke); dragging back in with the button still held resumes it. `buttons & 1`
+// guards against a stroke that began off-canvas.
 canvas.addEventListener("pointermove", (event) => {
-  if (!stroking || (event.buttons & 1) === 0) return;
   const { x, y } = eventToField(event);
+  renderer.preview = { tool, x, y, foodSize: placement.foodSize };
+  if (!stroking || (event.buttons & 1) === 0) return;
   paintAt(x, y);
+});
+
+// The preview vanishes when the pointer leaves the canvas.
+canvas.addEventListener("pointerleave", () => {
+  renderer.preview = null;
 });
 
 // End the stroke on release anywhere — including outside the canvas.

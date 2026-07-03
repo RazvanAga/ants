@@ -1,4 +1,13 @@
-import type { World } from "../sim/world.ts";
+import { ERASE_RADIUS, type World } from "../sim/world.ts";
+
+/** Active tool and cursor position for the ghost preview (#16). Purely visual. */
+export interface ToolPreview {
+  tool: "nest" | "food" | "erase";
+  x: number;
+  y: number;
+  /** Crumb count the Food tool would drop; the preview footprint scales with it. */
+  foodSize: number;
+}
 
 /**
  * Canvas renderer (PRD-01 → Rendering). Reads World state, never mutates it.
@@ -18,9 +27,22 @@ const CARRIER_INK = "#c8641e";
 const FOOD_FILL = "#b8571c";
 const ANT_SIZE = 3;
 const FOOD_BLOB_POINTS = 11;
+/** Ghost preview: thin, slightly transparent so it guides without shouting (#16). */
+const PREVIEW_INK = "#e8e8e8";
+const PREVIEW_ALPHA = 0.5;
+const PREVIEW_WIDTH = 1;
+/** A full source of this many crumbs renders at radius PREVIEW_FOOD_REF_RADIUS. */
+const PREVIEW_FOOD_REF_CRUMBS = 300;
+const PREVIEW_FOOD_REF_RADIUS = 20;
 
 export class Renderer {
   private readonly ctx: CanvasRenderingContext2D;
+
+  /**
+   * Ghost preview under the cursor, or null when the pointer is off the canvas.
+   * Set from outside; drawn on top of the frame. Never touches world state.
+   */
+  preview: ToolPreview | null = null;
 
   /** Off-screen buffer at grid resolution; blitted scaled to the display. */
   private readonly grid: HTMLCanvasElement;
@@ -78,6 +100,33 @@ export class Renderer {
     ctx.beginPath();
     ctx.arc(world.nest.x, world.nest.y, NEST_RADIUS, 0, Math.PI * 2);
     ctx.stroke();
+
+    // Tool preview last, so the ghost floats above everything (#16).
+    this.renderPreview();
+  }
+
+  /**
+   * Outline the active tool's reach at the cursor: the erase wipe radius, the
+   * footprint a fresh Food source would occupy (scaled to the next-food-size),
+   * or the nest ring. A thin, faint stroke — a hint, not a mark on the world.
+   */
+  private renderPreview(): void {
+    const p = this.preview;
+    if (!p) return;
+    const radius =
+      p.tool === "erase" ? ERASE_RADIUS
+      : p.tool === "nest" ? NEST_RADIUS
+      : PREVIEW_FOOD_REF_RADIUS * Math.sqrt(p.foodSize / PREVIEW_FOOD_REF_CRUMBS);
+
+    const { ctx } = this;
+    ctx.save();
+    ctx.globalAlpha = PREVIEW_ALPHA;
+    ctx.strokeStyle = PREVIEW_INK;
+    ctx.lineWidth = PREVIEW_WIDTH;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, radius, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
   }
 
   /**

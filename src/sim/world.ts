@@ -13,7 +13,7 @@ export interface Vec2 {
 const DELIVERY_RADIUS = 8;
 
 /** Radius the erase tool reaches to remove food sources and wipe pheromone, in pixels. */
-const ERASE_RADIUS = 16;
+export const ERASE_RADIUS = 16;
 
 /**
  * Structural parameters of the field. Hardcoded for v1 (see PRD-01 → UI);
