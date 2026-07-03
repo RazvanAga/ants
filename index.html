@@ -4,118 +4,646 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Ant Colony Simulation</title>
+    <meta
+      name="description"
+      content="An interactive top-down ant colony simulation. Emergent foraging trails from simple, stigmergic rules, tunable live."
+    />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>%F0%9F%90%9C</text></svg>"
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
     <style>
       :root {
         color-scheme: dark;
+
+        /* Surfaces: warm graphite — soil, not neutral steel. The mid-grey sim
+           field is meant to be the brightest plane on the page. */
+        --soil: #131210;
+        --soil-1: #1a1813;
+        --soil-2: #221f18;
+        --raised: #2b271e;
+        --line: #332d22;
+        --line-soft: #241f18;
+        --track: #38321f;
+
+        /* Text ramp keyed to the sim's pheromones: home reads white, food reads
+           pale tan. So primary text = home-pheromone, dim text = food-pheromone. */
+        --home: #ece7da; /* home-trail white */
+        --food-tan: #d6c29e; /* exact FOOD_TINT from the renderer */
+        --ink: var(--home);
+        --ink-dim: #a99d84;
+        --ink-faint: #6f6857;
+
+        /* Accent = the carrier's amber, pulled from the sim ink and brightened. */
+        --amber: #d97a2b;
+        --amber-bright: #eb9040;
+        --amber-ink: #17130c;
+
+        /* Specimen colours, straight from render.ts — used only in the legend. */
+        --sp-searcher: #111111;
+        --sp-carrier: #c8641e;
+        --sp-home: #f2efe6;
+        --sp-food-trail: #d6c29e;
+        --sp-food: #b8571c;
         --field: #7f7f7f;
+
+        --r-panel: 4px;
+        --r-ctrl: 3px;
+
+        --shadow: 0 22px 50px -26px rgba(0, 0, 0, 0.8);
+        --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+        --display: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+        --mono: ui-monospace, "SF Mono", "Cascadia Code", "Segoe UI Mono", monospace;
       }
+
       * {
         box-sizing: border-box;
       }
+
       body {
         margin: 0;
         min-height: 100vh;
         display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: 1rem;
-        padding: 1.5rem;
-        background: #1c1c1c;
-        color: #e8e8e8;
-        font: 14px/1.4 system-ui, sans-serif;
+        justify-content: center;
+        padding: 2.5rem 1.5rem 3rem;
+        background:
+          radial-gradient(1200px 560px at 50% -14%, #221d13, transparent 68%),
+          var(--soil);
+        color: var(--ink);
+        font: 14px/1.5 var(--sans);
+        -webkit-font-smoothing: antialiased;
       }
-      #controls {
+
+      .app {
+        width: 100%;
+        max-width: 1060px;
         display: flex;
-        gap: 0.75rem;
+        flex-direction: column;
+        gap: 4px;
+      }
+
+      /* ---- Signature: the pheromone trail -------------------------------------
+         A line of amber "deposits" (dots) that evaporates toward its tail via a
+         mask, and is laid down left-to-right on load. Reused as the masthead
+         underline and the legend rule — the one bold idea on the page. */
+      .trail {
+        height: 7px;
+        color: var(--amber);
+        background-image: radial-gradient(
+          circle at center,
+          currentColor 0 1.1px,
+          transparent 1.6px
+        );
+        background-size: 9px 7px;
+        background-repeat: repeat-x;
+        background-position: left center;
+        -webkit-mask-image: linear-gradient(90deg, #000 0%, #000 62%, transparent 100%);
+        mask-image: linear-gradient(90deg, #000 0%, #000 62%, transparent 100%);
+        opacity: 0.9;
+        animation: lay 0.9s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+      }
+      @keyframes lay {
+        from {
+          clip-path: inset(0 100% 0 0);
+        }
+        to {
+          clip-path: inset(0 0 0 0);
+        }
+      }
+
+      /* ---- Masthead ----------------------------------------------------------- */
+      .masthead {
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+        flex-wrap: wrap;
+        gap: 1rem 1.5rem;
+        padding: 0 0.15rem 0.75rem;
+      }
+      .brand {
+        display: flex;
         align-items: center;
+        gap: 0.7rem;
+      }
+      .brand-mark {
+        display: grid;
+        place-items: center;
+        width: 34px;
+        height: 34px;
+        font-size: 1.05rem;
+        line-height: 1;
+        border-radius: var(--r-ctrl);
+        background: linear-gradient(160deg, var(--raised), var(--soil-1));
+        border: 1px solid var(--line);
+        box-shadow: inset 0 0 0 1px rgba(217, 122, 43, 0.14);
+      }
+      .brand-text {
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+      }
+      .brand-name {
+        font-family: var(--display);
+        font-size: 1.28rem;
+        font-weight: 600;
+        letter-spacing: -0.02em;
+        line-height: 1;
+      }
+      .brand-sub {
+        font-family: var(--mono);
+        font-size: 0.64rem;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: var(--amber-bright);
+      }
+
+      /* Live readouts as instrument fields. */
+      .readouts {
+        display: flex;
+        align-items: stretch;
+        gap: 0;
+        border: 1px solid var(--line);
+        border-radius: var(--r-ctrl);
+        overflow: hidden;
+        background: var(--soil-1);
+      }
+      .field {
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+        padding: 0.4rem 0.85rem 0.42rem;
+        min-width: 74px;
+      }
+      .field + .field {
+        border-left: 1px solid var(--line-soft);
+      }
+      .field-label {
+        font-family: var(--mono);
+        font-size: 0.58rem;
+        text-transform: uppercase;
+        letter-spacing: 0.14em;
+        color: var(--ink-faint);
+      }
+      .field-value {
+        font-family: var(--mono);
+        font-size: 1.02rem;
+        font-variant-numeric: tabular-nums;
+        color: var(--ink);
+      }
+      /* The seed frames the run as a reproducible trial. */
+      #stat-seed {
+        color: var(--food-tan);
+      }
+
+      /* ---- Workspace ---------------------------------------------------------- */
+      .workspace {
+        display: grid;
+        grid-template-columns: minmax(0, auto) 296px;
+        gap: 20px;
+        align-items: start;
+        justify-content: center;
+        margin-top: 18px;
+      }
+      .stage {
+        min-width: 0;
+      }
+
+      /* ---- Toolbar ------------------------------------------------------------ */
+      .toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.55rem;
+        padding: 0.5rem 0.55rem;
+        margin-bottom: 14px;
+        background: var(--soil-1);
+        border: 1px solid var(--line);
+        border-radius: var(--r-panel);
+      }
+      .group {
+        display: flex;
+        align-items: center;
+        gap: 0.35rem;
       }
       button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.4rem;
         font: inherit;
-        padding: 0.4rem 0.9rem;
-        border: 1px solid #555;
-        border-radius: 6px;
-        background: #2c2c2c;
-        color: inherit;
+        font-weight: 500;
+        letter-spacing: 0.01em;
+        padding: 0.48rem 0.7rem 0.48rem 0.82rem;
+        border: 1px solid var(--line);
+        border-radius: var(--r-ctrl);
+        background: var(--soil-2);
+        color: var(--ink);
         cursor: pointer;
+        transition:
+          background 0.15s ease,
+          border-color 0.15s ease,
+          color 0.15s ease,
+          transform 0.05s ease;
       }
       button:hover {
-        background: #383838;
+        background: var(--raised);
+        border-color: #453d2c;
       }
-      button.active {
-        background: #4a4a4a;
-        border-color: #8a8a8a;
+      button:active {
+        transform: translateY(1px);
       }
-      #tools,
-      #speeds {
-        display: flex;
-        gap: 0.4rem;
-        border-left: 1px solid #444;
-        padding-left: 0.75rem;
+      button:focus-visible {
+        outline: 2px solid var(--amber);
+        outline-offset: 2px;
+      }
+
+      /* Play/Pause: the primary transport, carrying the carrier-amber. */
+      #play-pause {
+        min-width: 82px;
+        font-weight: 600;
+        color: var(--amber-ink);
+        background: var(--amber);
+        border-color: transparent;
+      }
+      #play-pause:hover {
+        background: var(--amber-bright);
+      }
+
+      /* Segmented controls for tools and speed. */
+      .segmented {
+        gap: 2px;
+        padding: 3px;
+        background: var(--soil);
+        border: 1px solid var(--line);
+        border-radius: var(--r-ctrl);
+      }
+      .segmented button {
+        padding: 0.4rem 0.7rem;
+        background: transparent;
+        border-color: transparent;
+      }
+      .segmented button:hover {
+        background: var(--soil-2);
+        border-color: transparent;
+      }
+      .segmented button.active {
+        background: var(--raised);
+        border-color: var(--line);
+        color: var(--amber-bright);
+      }
+
+      /* ---- Canvas stage: the specimen under observation ----------------------- */
+      .canvas-frame {
+        width: fit-content;
+        padding: 7px;
+        background: var(--soil-1);
+        border: 1px solid var(--line);
+        border-radius: var(--r-panel);
+        box-shadow:
+          var(--shadow),
+          inset 0 0 0 1px rgba(217, 122, 43, 0.12);
       }
       canvas {
-        border: 1px solid #444;
         display: block;
+        width: 640px;
+        max-width: 100%;
+        height: auto;
+        border-radius: 2px;
+        background: var(--field);
         image-rendering: pixelated;
         touch-action: none; /* let press-and-drag paint instead of scrolling (#15) */
       }
-      #status {
-        opacity: 0.7;
-        font-variant-numeric: tabular-nums;
+
+      /* ---- Field note + specimen legend --------------------------------------- */
+      .fieldnote {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.6rem 1.25rem;
+        margin-top: 14px;
+        padding: 0 0.2rem;
       }
-      #sliders {
+      .rule {
+        margin: 0;
+        max-width: 30ch;
+        font-size: 0.82rem;
+        line-height: 1.45;
+        color: var(--ink-dim);
+      }
+      .rule b {
+        font-weight: 500;
+        color: var(--ink);
+      }
+      .legend {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.35rem 0.9rem;
+        margin: 0;
+        padding: 0;
+        list-style: none;
+      }
+      .legend li {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        font-family: var(--mono);
+        font-size: 0.66rem;
+        letter-spacing: 0.02em;
+        color: var(--ink-dim);
+      }
+      /* Each mark sits on a mini grey-field tile, so it reads with exactly the
+         contrast it has on the sim field — the black searcher and nest ring stay
+         legible against the dark chrome. */
+      .swatch {
         display: grid;
-        grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-        gap: 0.5rem 1.25rem;
-        width: min(100%, 660px);
-        padding: 0.75rem 1rem;
-        border: 1px solid #444;
-        border-radius: 8px;
-        background: #232323;
+        place-items: center;
+        width: 15px;
+        height: 15px;
+        border-radius: 3px;
+        background: var(--field);
+        flex: none;
+      }
+      .swatch::before {
+        content: "";
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--c);
+      }
+      /* Trails read as short bars, not dots. */
+      .swatch.bar::before {
+        width: 12px;
+        height: 3px;
+        border-radius: 999px;
+      }
+      /* The nest is an outline ring, like on the field. */
+      .swatch.ring::before {
+        width: 11px;
+        height: 11px;
+        border-radius: 50%;
+        background: transparent;
+        box-shadow: inset 0 0 0 2px var(--sp-searcher);
+      }
+
+      /* ---- Parameter panel ---------------------------------------------------- */
+      .panel {
+        align-self: start;
+        padding: 15px 16px 14px;
+        background: var(--soil-1);
+        border: 1px solid var(--line);
+        border-radius: var(--r-panel);
+      }
+      .panel-head {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 0.75rem;
+        margin-bottom: 14px;
+        padding-bottom: 11px;
+        border-bottom: 1px solid var(--line-soft);
+      }
+      .panel-title {
+        margin: 0;
+        font-family: var(--display);
+        font-size: 1rem;
+        font-weight: 600;
+        letter-spacing: -0.01em;
+      }
+      .panel-hint {
+        font-family: var(--mono);
+        font-size: 0.62rem;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--ink-faint);
+      }
+
+      #sliders {
+        display: flex;
+        flex-direction: column;
+        gap: 17px;
       }
       #sliders label {
         display: grid;
         grid-template-columns: 1fr auto;
         align-items: center;
-        gap: 0.25rem 0.5rem;
+        gap: 2px 8px;
       }
       #sliders label span {
-        opacity: 0.85;
+        color: var(--ink);
+        font-size: 0.88rem;
+        font-weight: 500;
+      }
+      #sliders label small {
+        grid-column: 1 / 2;
+        color: var(--ink-faint);
+        font-size: 0.72rem;
+        margin-bottom: 5px;
       }
       #sliders label output {
+        font-family: var(--mono);
+        font-size: 0.76rem;
         font-variant-numeric: tabular-nums;
-        opacity: 0.7;
+        color: var(--amber-bright);
+        background: var(--soil);
+        border: 1px solid var(--line-soft);
+        border-radius: var(--r-ctrl);
+        padding: 1px 7px;
       }
-      #sliders input[type="range"] {
+
+      /* Custom range: thin amber track fill is faked with the thumb + track. */
+      input[type="range"] {
         grid-column: 1 / -1;
         width: 100%;
-        accent-color: #8a8a8a;
+        height: 20px;
+        margin: 0;
+        background: transparent;
+        cursor: pointer;
+        -webkit-appearance: none;
+        appearance: none;
       }
+      input[type="range"]::-webkit-slider-runnable-track {
+        height: 3px;
+        border-radius: 999px;
+        background: var(--track);
+      }
+      input[type="range"]::-moz-range-track {
+        height: 3px;
+        border-radius: 999px;
+        background: var(--track);
+      }
+      input[type="range"]::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        appearance: none;
+        margin-top: -5.5px;
+        width: 13px;
+        height: 13px;
+        border-radius: 50%;
+        background: var(--amber);
+        border: 2px solid var(--soil-1);
+        box-shadow: 0 0 0 1px var(--line);
+      }
+      input[type="range"]::-moz-range-thumb {
+        width: 13px;
+        height: 13px;
+        border-radius: 50%;
+        background: var(--amber);
+        border: 2px solid var(--soil-1);
+      }
+      input[type="range"]:focus-visible {
+        outline: none;
+      }
+      input[type="range"]:focus-visible::-webkit-slider-thumb {
+        box-shadow: 0 0 0 3px rgba(217, 122, 43, 0.35);
+      }
+      input[type="range"]:focus-visible::-moz-range-thumb {
+        box-shadow: 0 0 0 3px rgba(217, 122, 43, 0.35);
+      }
+
       #reset-sliders {
         grid-column: 1 / -1;
-        justify-self: start;
-        margin-top: 0.25rem;
+        width: 100%;
+        margin-top: 6px;
+        padding: 0.5rem;
+        font-family: var(--mono);
+        font-size: 0.68rem;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--ink-dim);
+        background: transparent;
+        border: 1px dashed var(--line);
+      }
+      #reset-sliders:hover {
+        color: var(--amber-bright);
+        border-color: var(--amber);
+        background: rgba(217, 122, 43, 0.06);
+      }
+
+      /* ---- Inline keycaps ----------------------------------------------------- */
+      kbd {
+        font-family: var(--mono);
+        font-size: 0.64rem;
+        line-height: 1;
+        color: var(--ink-faint);
+        background: rgba(255, 255, 255, 0.035);
+        border: 1px solid var(--line);
+        border-radius: 3px;
+        padding: 2px 4px;
+      }
+      #play-pause kbd {
+        color: rgba(23, 19, 12, 0.62);
+        background: rgba(0, 0, 0, 0.14);
+        border-color: rgba(0, 0, 0, 0.18);
+      }
+      .kbd-note {
+        display: inline-flex;
+        align-items: center;
+        gap: 3px;
+        margin-left: -0.15rem;
+        color: var(--ink-faint);
+      }
+
+      /* ---- Narrow screens ----------------------------------------------------- */
+      @media (max-width: 1000px) {
+        .workspace {
+          grid-template-columns: minmax(0, 1fr);
+        }
+        .panel {
+          justify-self: center;
+          width: 100%;
+          max-width: 660px;
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        .trail {
+          animation: none;
+        }
       }
     </style>
   </head>
   <body>
-    <div id="controls">
-      <button id="play-pause" type="button" title="Play/Pause (Space)">Pause</button>
-      <button id="reset" type="button" title="Reset (R)">Reset</button>
-      <div id="tools">
-        <button id="tool-nest" type="button" title="Nest tool (1)">Nest</button>
-        <button id="tool-food" type="button" title="Food tool (2)">Food</button>
-        <button id="tool-erase" type="button" title="Erase tool (3)">Erase</button>
-      </div>
-      <div id="speeds" title="Speed — faster (+) / slower (−)">
-        <button type="button" data-speed="1">1x</button>
-        <button type="button" data-speed="2">2x</button>
-        <button type="button" data-speed="4">4x</button>
-        <button type="button" data-speed="8">8x</button>
-      </div>
-      <span id="status"></span>
+    <div class="app">
+      <header class="masthead">
+        <div class="brand">
+          <span class="brand-mark" aria-hidden="true">🐜</span>
+          <span class="brand-text">
+            <span class="brand-name">Ant Colony</span>
+            <span class="brand-sub">Trails, not orders</span>
+          </span>
+        </div>
+        <div class="readouts">
+          <div class="field">
+            <span class="field-label">Food</span>
+            <span class="field-value" id="stat-food">0</span>
+          </div>
+          <div class="field">
+            <span class="field-label">Elapsed</span>
+            <span class="field-value" id="stat-time">0:00</span>
+          </div>
+          <div class="field">
+            <span class="field-label">Seed</span>
+            <span class="field-value" id="stat-seed">1</span>
+          </div>
+        </div>
+      </header>
+      <div class="trail" aria-hidden="true"></div>
+
+      <main class="workspace">
+        <section class="stage" aria-label="Simulation">
+          <div id="controls" class="toolbar">
+            <div class="group">
+              <button id="play-pause" type="button" title="Play/Pause">
+                <span id="pp-label">Pause</span><kbd>Space</kbd>
+              </button>
+              <button id="reset" type="button" title="Reset">Reset<kbd>R</kbd></button>
+            </div>
+            <div class="group segmented" id="tools" role="group" aria-label="Placement tool">
+              <button id="tool-nest" type="button" title="Nest tool">Nest<kbd>1</kbd></button>
+              <button id="tool-food" type="button" title="Food tool">Food<kbd>2</kbd></button>
+              <button id="tool-erase" type="button" title="Erase tool">Erase<kbd>3</kbd></button>
+            </div>
+            <div class="group segmented speeds" id="speeds" role="group" aria-label="Speed">
+              <button type="button" data-speed="1">1×</button>
+              <button type="button" data-speed="2">2×</button>
+              <button type="button" data-speed="4">4×</button>
+              <button type="button" data-speed="8">8×</button>
+            </div>
+            <span class="kbd-note" aria-label="Speed shortcuts"><kbd>+</kbd><kbd>−</kbd></span>
+          </div>
+          <div class="canvas-frame">
+            <canvas id="field"></canvas>
+          </div>
+          <div class="fieldnote">
+            <p class="rule">
+              <b>Lay</b> the trail that leads home; <b>follow</b> the trail that leads to food.
+            </p>
+            <ul class="legend" aria-label="Field legend">
+              <li><span class="swatch" style="--c: var(--sp-searcher)"></span>searcher</li>
+              <li><span class="swatch" style="--c: var(--sp-carrier)"></span>carrier</li>
+              <li><span class="swatch bar" style="--c: var(--sp-home)"></span>home trail</li>
+              <li><span class="swatch bar" style="--c: var(--sp-food-trail)"></span>food trail</li>
+              <li><span class="swatch" style="--c: var(--sp-food)"></span>food</li>
+              <li><span class="swatch ring"></span>nest</li>
+            </ul>
+          </div>
+        </section>
+
+        <aside class="panel" aria-label="Parameters">
+          <div class="panel-head">
+            <h2 class="panel-title">Parameters</h2>
+            <span class="panel-hint">live · drag while it runs</span>
+          </div>
+          <div id="sliders"></div>
+        </aside>
+      </main>
     </div>
-    <canvas id="field"></canvas>
-    <div id="sliders"></div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>

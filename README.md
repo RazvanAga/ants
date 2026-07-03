@@ -5,8 +5,9 @@ ants produce complex, emergent foraging behaviour — trails that form, sharpen,
 with no colony-level choreography. You dictate the rules for a *single* ant; the swarm does
 the rest.
 
-> **Status:** design complete, implementation starting. The full design lives in
-> [`docs/`](docs/); work is tracked as [issues](https://github.com/RazvanAga/ants/issues).
+> **Status:** playable. The full foraging simulation is built — emergent trails, live
+> tuning, placement tools, and the quality-of-life controls below all work. The design lives
+> in [`docs/`](docs/); work is tracked as [issues](https://github.com/RazvanAga/ants/issues).
 
 ## The idea
 
@@ -56,6 +57,21 @@ into an efficient route. That collective optimisation is the whole point.
 Targets **200–800 ants** at 60 fps in the browser. See the architecture decisions for why
 that makes native code unnecessary here.
 
+## Controls
+
+- **Play/Pause & Reset** — pause freezes stepping while the view stays live; Reset rebuilds
+  the world with a fresh seed but keeps your slider tuning.
+- **Placement tools** — Nest, Food, Erase. **Press-and-drag to paint**: Erase wipes along
+  the path, Food lays a spaced trail of sources; Nest is click-only. A ghost cursor previews
+  each tool's reach before you commit.
+- **Speed** — fast-forward at 1x / 2x / 4x / 8x. Higher speeds pass through the *identical*
+  deterministic states, just faster on the wall clock.
+- **Status bar** — live **food collected** tally and an elapsed sim clock (`m:ss`, derived
+  from ticks so it pauses with the sim), alongside the reproducible seed.
+- **Sliders** — every behavioural parameter, draggable while it runs, with a one-click
+  **Reset sliders to defaults** that reverts tuning without disturbing the running world.
+- **Keyboard** — `Space` play/pause · `R` reset · `1`/`2`/`3` tools · `+`/`−` speed.
+
 ## Tech stack
 
 - **TypeScript** + **Vite** (vanilla-ts) — a self-contained, client-side app.
@@ -74,27 +90,29 @@ that makes native code unnecessary here.
 
 ## Roadmap
 
-Built in vertical slices — each is demoable on its own:
+Built in vertical slices — each demoable on its own. The core simulation is complete:
 
-1. Walking skeleton: canvas, deterministic loop, nest
-2. Wandering ants with wall avoidance
-3. Pheromone field: deposit, evaporate, diffuse, render
-4. Forage loop (direct detection + homing vector)
-5. Emergent pheromone-driven foraging
-6. Anti-stuck escape-wander & search-forever
-7. Placement tools: nest, food source, erase
-8. Control panel: sim controls, counter, overlays, seed
-9. Live parameter sliders
-10. Tune defaults for satisfying emergence
+1. ✅ Walking skeleton: canvas, deterministic loop, nest
+2. ✅ Wandering ants with wall avoidance
+3. ✅ Pheromone field: deposit, evaporate, diffuse, render
+4. ✅ Forage loop (direct detection + homing vector)
+5. ✅ Emergent pheromone-driven foraging
+6. ✅ Anti-stuck escape-wander & search-forever
+7. ✅ Placement tools: nest, food source, erase
+8. ✅ Control panel: sim controls, counter, overlays, seed
+9. ✅ Live parameter sliders
+10. ✅ Tune defaults for satisfying emergence
+
+Followed by quality-of-life polish — status bar counter & clock, speed control,
+keyboard shortcuts, drag-to-paint, tool cursor preview, and reset-sliders.
 
 Track progress on the [issues board](https://github.com/RazvanAga/ants/issues).
 
 ## Getting started
 
-> Not yet scaffolded — the Vite project lands with
-> [issue #2](https://github.com/RazvanAga/ants/issues/2). Once it does:
->
-> ```bash
-> npm install
-> npm run dev
-> ```
+```bash
+npm install
+npm run dev      # start the dev server
+npm test         # run the sim test suite
+npm run build    # typecheck + production build
+```

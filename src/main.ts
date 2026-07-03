@@ -11,8 +11,13 @@ const placement = { foodSize: 300 };
 
 const canvas = document.querySelector<HTMLCanvasElement>("#field")!;
 const playPause = document.querySelector<HTMLButtonElement>("#play-pause")!;
+// Just the word, so flipping it leaves the button's keycap intact.
+const ppLabel = document.querySelector<HTMLSpanElement>("#pp-label")!;
 const reset = document.querySelector<HTMLButtonElement>("#reset")!;
-const status = document.querySelector<HTMLSpanElement>("#status")!;
+// Live readouts: separate stat tiles. Run state is shown by the Pause button.
+const statFood = document.querySelector<HTMLSpanElement>("#stat-food")!;
+const statTime = document.querySelector<HTMLSpanElement>("#stat-time")!;
+const statSeed = document.querySelector<HTMLSpanElement>("#stat-seed")!;
 
 // `let`, not `const`: reset swaps in a fresh World/Renderer pair, and every
 // closure below (loop callbacks, tools, sliders) reads these bindings live.
@@ -32,15 +37,15 @@ const loop = new Loop(STEPS_PER_SECOND, {
   step: () => world.step(),
   render: () => {
     renderer.render();
-    status.textContent = `seed ${world.seed} · food ${world.foodCollected} · ${formatClock(
-      world.tick,
-    )}${loop.paused ? " · paused" : ""}`;
+    statFood.textContent = String(world.foodCollected);
+    statTime.textContent = formatClock(world.tick);
+    statSeed.textContent = String(world.seed);
   },
 });
 
 function togglePause(): void {
   loop.paused = !loop.paused;
-  playPause.textContent = loop.paused ? "Play" : "Pause";
+  ppLabel.textContent = loop.paused ? "Play" : "Pause";
 }
 playPause.addEventListener("click", togglePause);
 
@@ -202,8 +207,14 @@ window.addEventListener("pointerup", () => {
 // Parameter sliders (#10): behavioural params affect the running sim the instant
 // they change, because World reads world.params live every step and sliders write
 // straight into it. Ant count and next-food-size need dedicated setters instead.
+// Only the five sliders with a big, legible, immediate visual payoff are exposed
+// (#18). The tuning knobs (diffusion, sensor distance/angle, trail reach) were
+// benchmark-dialled and mostly just degrade the sim if touched, so they stay at
+// their DEFAULT_PARAMS values instead of cluttering the panel.
 interface SliderSpec {
   label: string;
+  /** One-line "what dragging this does" descriptor shown under the label. */
+  hint: string;
   min: number;
   max: number;
   step: number;
@@ -214,24 +225,16 @@ interface SliderSpec {
 }
 
 const sliders: SliderSpec[] = [
-  { label: "Ant count", min: 0, max: 1000, step: 10, value: world.params.antCount,
-    apply: (v) => world.setAntCount(v) },
-  { label: "Evaporation", min: 0, max: 0.1, step: 0.005, value: world.params.evaporation,
-    apply: (v) => { world.params.evaporation = v; } },
-  { label: "Diffusion", min: 0, max: 0.5, step: 0.01, value: world.params.diffusion,
-    apply: (v) => { world.params.diffusion = v; } },
-  { label: "Sensor distance", min: 2, max: 30, step: 1, value: world.params.sensorDistance,
-    apply: (v) => { world.params.sensorDistance = v; } },
-  { label: "Sensor angle", min: 0.1, max: 1.5, step: 0.05, value: world.params.sensorAngle,
-    apply: (v) => { world.params.sensorAngle = v; } },
-  { label: "Wander", min: 0, max: 1, step: 0.05, value: world.params.wander,
-    apply: (v) => { world.params.wander = v; } },
-  { label: "Deposit strength", min: 0, max: 1, step: 0.05, value: world.params.depositStrength,
-    apply: (v) => { world.params.depositStrength = v; } },
-  { label: "Trail reach", min: 20, max: 300, step: 10, value: world.params.trailReach,
-    apply: (v) => { world.params.trailReach = v; } },
-  { label: "Next food size", min: 50, max: 1000, step: 50, value: placement.foodSize,
-    apply: (v) => { placement.foodSize = v; } },
+  { label: "Ant count", hint: "more ants, more life", min: 0, max: 1000, step: 10,
+    value: world.params.antCount, apply: (v) => world.setAntCount(v) },
+  { label: "Wander", hint: "order ↔ chaos", min: 0, max: 1, step: 0.05,
+    value: world.params.wander, apply: (v) => { world.params.wander = v; } },
+  { label: "Evaporation", hint: "trails linger ↔ vanish", min: 0, max: 0.1, step: 0.005,
+    value: world.params.evaporation, apply: (v) => { world.params.evaporation = v; } },
+  { label: "Deposit strength", hint: "faint ↔ bold trails", min: 0, max: 1, step: 0.05,
+    value: world.params.depositStrength, apply: (v) => { world.params.depositStrength = v; } },
+  { label: "Next food size", hint: "crumbs in the next drop", min: 50, max: 1000, step: 50,
+    value: placement.foodSize, apply: (v) => { placement.foodSize = v; } },
 ];
 
 const sliderPanel = document.querySelector<HTMLDivElement>("#sliders")!;
@@ -243,6 +246,8 @@ for (const spec of sliders) {
   const label = document.createElement("label");
   const name = document.createElement("span");
   name.textContent = spec.label;
+  const hint = document.createElement("small");
+  hint.textContent = spec.hint;
   const value = document.createElement("output");
   const input = document.createElement("input");
   input.type = "range";
@@ -257,7 +262,7 @@ for (const spec of sliders) {
   set(spec.value);
   input.addEventListener("input", () => set(Number(input.value)));
   restoreDefaults.push(() => set(spec.value));
-  label.append(name, value, input);
+  label.append(name, value, hint, input);
   sliderPanel.append(label);
 }
 
