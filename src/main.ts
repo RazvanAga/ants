@@ -136,14 +136,60 @@ window.addEventListener("keydown", (event) => {
   }
 });
 
-// Map a click to field coordinates, correcting for any CSS scaling of the canvas.
-canvas.addEventListener("click", (event) => {
+// Placement via pointer (#8, #15). Press-and-drag paints with the active tool:
+// Erase wipes continuously along the path, Food drops distinct sources throttled
+// by a minimum spacing so a drag lays a trail instead of stacking hundreds. Nest
+// is placed once on press — there is one nest and dragging it is a separate feature.
+const FOOD_PAINT_SPACING = 24; // px between dragged Food drops; > ERASE_RADIUS keeps blobs distinct
+
+// Map a pointer event to field coordinates, correcting for any CSS scaling.
+function eventToField(event: PointerEvent): { x: number; y: number } {
   const rect = canvas.getBoundingClientRect();
-  const x = ((event.clientX - rect.left) / rect.width) * canvas.width;
-  const y = ((event.clientY - rect.top) / rect.height) * canvas.height;
-  if (tool === "nest") world.moveNest(x, y);
-  else if (tool === "food") world.addFoodSource(x, y, placement.foodSize);
-  else world.eraseAt(x, y);
+  return {
+    x: ((event.clientX - rect.left) / rect.width) * canvas.width,
+    y: ((event.clientY - rect.top) / rect.height) * canvas.height,
+  };
+}
+
+let stroking = false;
+let lastFoodDrop: { x: number; y: number } | null = null;
+
+function paintAt(x: number, y: number): void {
+  if (tool === "erase") {
+    world.eraseAt(x, y);
+  } else if (tool === "food") {
+    // Throttle by distance so a fast drag doesn't stack sources every frame.
+    if (lastFoodDrop && Math.hypot(x - lastFoodDrop.x, y - lastFoodDrop.y) < FOOD_PAINT_SPACING) {
+      return;
+    }
+    world.addFoodSource(x, y, placement.foodSize);
+    lastFoodDrop = { x, y };
+  }
+}
+
+canvas.addEventListener("pointerdown", (event) => {
+  const { x, y } = eventToField(event);
+  if (tool === "nest") {
+    world.moveNest(x, y); // click-only: place once, no dragging
+    return;
+  }
+  stroking = true;
+  lastFoodDrop = null; // fresh stroke: the first Food drop always lands
+  paintAt(x, y);
+});
+
+// Paint along the drag. No pointer capture, so leaving the canvas simply stops
+// the events (pausing the stroke); dragging back in with the button still held
+// resumes it. `buttons & 1` guards against a stroke that began off-canvas.
+canvas.addEventListener("pointermove", (event) => {
+  if (!stroking || (event.buttons & 1) === 0) return;
+  const { x, y } = eventToField(event);
+  paintAt(x, y);
+});
+
+// End the stroke on release anywhere — including outside the canvas.
+window.addEventListener("pointerup", () => {
+  stroking = false;
 });
 
 // Parameter sliders (#10): behavioural params affect the running sim the instant
