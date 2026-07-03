@@ -207,7 +207,7 @@ interface SliderSpec {
   min: number;
   max: number;
   step: number;
-  /** Current value at load. */
+  /** Tuned default (the value at load); what the Reset-sliders button restores. */
   value: number;
   /** Apply a new value to the sim; called on every input event. */
   apply: (value: number) => void;
@@ -235,25 +235,42 @@ const sliders: SliderSpec[] = [
 ];
 
 const sliderPanel = document.querySelector<HTMLDivElement>("#sliders")!;
+// Each slider drives sim, readout, and thumb through one `set` path, so the
+// Reset-sliders button (#17) can restore a default exactly as a manual drag —
+// special cases (ant count's setter, next-food-size's placement state) included.
+const restoreDefaults: (() => void)[] = [];
 for (const spec of sliders) {
   const label = document.createElement("label");
   const name = document.createElement("span");
   name.textContent = spec.label;
   const value = document.createElement("output");
-  value.textContent = String(spec.value);
   const input = document.createElement("input");
   input.type = "range";
   input.min = String(spec.min);
   input.max = String(spec.max);
   input.step = String(spec.step);
-  input.value = String(spec.value);
-  input.addEventListener("input", () => {
-    const v = Number(input.value);
+  const set = (v: number): void => {
+    input.value = String(v);
     value.textContent = input.value;
     spec.apply(v);
-  });
+  };
+  set(spec.value);
+  input.addEventListener("input", () => set(Number(input.value)));
+  restoreDefaults.push(() => set(spec.value));
   label.append(name, value, input);
   sliderPanel.append(label);
 }
+
+// Reset sliders (#17): restore every param to its tuned default in one click,
+// each through its own apply path. The world itself is untouched — ants, field,
+// food, tick, and the collected tally all carry on. Works mid-run and paused.
+const resetSliders = document.createElement("button");
+resetSliders.type = "button";
+resetSliders.id = "reset-sliders";
+resetSliders.textContent = "Reset sliders to defaults";
+resetSliders.addEventListener("click", () => {
+  for (const restore of restoreDefaults) restore();
+});
+sliderPanel.append(resetSliders);
 
 loop.start();
