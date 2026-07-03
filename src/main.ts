@@ -38,15 +38,17 @@ const loop = new Loop(STEPS_PER_SECOND, {
   },
 });
 
-playPause.addEventListener("click", () => {
+function togglePause(): void {
   loop.paused = !loop.paused;
   playPause.textContent = loop.paused ? "Play" : "Pause";
-});
+}
+playPause.addEventListener("click", togglePause);
 
 // Speed control (#13): fast-forward the sim without touching the step size, so
 // higher speeds pass through identical states — just more of them per second.
 // The loop outlives resets, so the chosen speed carries over. Pause still halts
 // stepping and the loop's max-steps-per-frame guard still bounds an 8x frame.
+const SPEED_LEVELS = [1, 2, 4, 8];
 const speedButtons = [
   ...document.querySelectorAll<HTMLButtonElement>("#speeds button"),
 ];
@@ -55,6 +57,12 @@ function selectSpeed(speed: number): void {
   for (const button of speedButtons) {
     button.classList.toggle("active", Number(button.dataset.speed) === speed);
   }
+}
+/** Move up/down the discrete speed ladder for the +/− shortcuts, clamping at the ends. */
+function stepSpeed(direction: 1 | -1): void {
+  const current = SPEED_LEVELS.indexOf(loop.speed);
+  const next = Math.min(Math.max(current + direction, 0), SPEED_LEVELS.length - 1);
+  selectSpeed(SPEED_LEVELS[next]);
 }
 for (const button of speedButtons) {
   button.addEventListener("click", () => selectSpeed(Number(button.dataset.speed)));
@@ -67,10 +75,11 @@ selectSpeed(loop.speed);
 // The run is still reproducible: the status bar shows the new seed. The current
 // slider params carry over (World copies them), so a tuned colony restarts
 // with its tuning intact. Renders next frame even while paused.
-reset.addEventListener("click", () => {
+function resetWorld(): void {
   world = new World(CONFIG, (Math.random() * 0x100000000) >>> 0, world.params);
   renderer = new Renderer(canvas, world);
-});
+}
+reset.addEventListener("click", resetWorld);
 
 // Placement tools (#8): pick a mode, then click the field. The World public ops
 // do the work; this only maps clicks and reflects the active tool.
@@ -92,6 +101,40 @@ for (const name of Object.keys(toolButtons) as Tool[]) {
   toolButtons[name].addEventListener("click", () => selectTool(name));
 }
 selectTool(tool);
+
+// Keyboard shortcuts (#14): drive the exact same functions the buttons call, so
+// button state (pause label, active tool/speed) stays in sync for free.
+window.addEventListener("keydown", (event) => {
+  // Leave browser/OS chords (Ctrl+R reload, etc.) alone.
+  if (event.ctrlKey || event.metaKey || event.altKey) return;
+  // Don't hijack keys while a form control has focus — sliders use arrows, and a
+  // future text field would need its characters. Buttons are fair game.
+  const target = event.target as HTMLElement | null;
+  const tag = target?.tagName;
+  if (tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA" || target?.isContentEditable) {
+    return;
+  }
+  switch (event.key) {
+    case " ":
+      // Suppress the native Space-activates-focused-button click so pausing via a
+      // focused Pause button + Space toggles once, not twice.
+      event.preventDefault();
+      togglePause();
+      break;
+    case "r":
+    case "R":
+      resetWorld();
+      break;
+    case "1": selectTool("nest"); break;
+    case "2": selectTool("food"); break;
+    case "3": selectTool("erase"); break;
+    case "+":
+    case "=": stepSpeed(1); break;
+    case "-":
+    case "_": stepSpeed(-1); break;
+    default: return;
+  }
+});
 
 // Map a click to field coordinates, correcting for any CSS scaling of the canvas.
 canvas.addEventListener("click", (event) => {
